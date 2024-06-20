@@ -2,6 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'api.g.dart';
+
+const _host = 'opentdb.com';
 
 enum Difficulty {
   easy(Colors.green),
@@ -42,21 +47,17 @@ final class Question {
   }
 }
 
-class TriviaClient {
-  static const _host = 'opentdb.com';
+@riverpod
+Future<List<Question>> getQuestions(GetQuestionsRef ref, Difficulty difficulty, int amount) async {
+  final url = Uri.https(_host, 'api.php', {
+    'difficulty': difficulty.name,
+    'amount': amount.toString(),
+  });
 
-  Future<List<Question>> getQuestions(Difficulty difficulty, int amount) async {
-    final url = Uri.https(_host, 'api.php', {
-      'difficulty': difficulty.name,
-      'amount': amount.toString(),
-    });
+  final response = await http.get(url);
+  // TODO: error handling
+  final json = jsonDecode(response.body) as Map<String, dynamic>;
+  final results = json['results'] as List<dynamic>;
 
-    final response = await http.get(url);
-    // TODO: error handling
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    print(json);
-    final results = json['results'] as List<dynamic>;
-
-    return results.map(Question.fromJson).toList(growable: false);
-  }
+  return results.map(Question.fromJson).toList(growable: false);
 }

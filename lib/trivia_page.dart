@@ -1,83 +1,57 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_trivia/widgets.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'api.dart';
 
-class TriviaPage extends StatefulWidget {
+class TriviaPage extends HookConsumerWidget {
   final Difficulty difficulty;
 
   const TriviaPage(this.difficulty, {super.key});
 
   @override
-  State<StatefulWidget> createState() => TriviaState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final questionsAsync = ref.watch(GetQuestionsProvider(difficulty, 10));
 
-class TriviaState extends State<TriviaPage> {
-  late Future<List<Question>> _questions;
-
-  int questionIndex = 0;
-  int correctCount = 0;
-
-  @override
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-
-    _questions = TriviaClient().getQuestions(widget.difficulty, 10);
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
-      body: FutureBuilder(
-        future: _questions,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: AsyncContent(
+        value: questionsAsync,
+        builder: (questions) {
+          final questionIndex = useState(0);
+          final correctCount = useState(0);
 
-          if (snapshot.hasError) {
-            print(snapshot.error);
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          if (snapshot.hasData) {
-
-            final questions = snapshot.data as List<Question>;
-            if (questionIndex == questions.length) {
-              return TriviaResults(
-                correct: correctCount,
-                total: questions.length,
-              );
-            }
-
-            final question = questions[questionIndex];
-
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text("${questionIndex+1} / ${questions.length}"),
-                TriviaQuestion(
-                  question: question,
-                  onAnswer: (answer) => {
-                    setState(() {
-                      if (answer == question.correctAnswer) {
-                        correctCount += 1;
-                      }
-                      questionIndex += 1;
-                    })
-                  },
-                ),
-              ],
+          if (questionIndex.value == questions.length) {
+            return TriviaResults(
+              correct: correctCount.value,
+              total: questions.length,
             );
           }
 
-          return Center(child: Text('No data'));
+          final question = questions[questionIndex.value];
+
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text("${questionIndex.value + 1} / ${questions.length}"),
+              TriviaQuestion(
+                question: question,
+                onAnswer: (answer) {
+                  if (answer == question.correctAnswer) {
+                    correctCount.value += 1;
+                  }
+                  questionIndex.value += 1;
+                },
+              ),
+            ],
+          );
         },
       ),
     );
+
+    final questions = questionsAsync.value!;
   }
 }
 
@@ -141,8 +115,8 @@ class TriviaAnswersState extends State<TriviaAnswers> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: shuffledAnswers
           .map((answer) => Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: ElevatedButton(
+                padding: const EdgeInsets.all(8.0),
+                child: ElevatedButton(
                   onPressed: clickedAnswer == null
                       ? () => {
                             setState(() {
@@ -154,21 +128,23 @@ class TriviaAnswersState extends State<TriviaAnswers> {
                       : null,
                   style: clickedAnswer == answer
                       ? ButtonStyle(
-                          foregroundColor: WidgetStateProperty.all(Colors.white),
+                          foregroundColor:
+                              WidgetStateProperty.all(Colors.white),
                           backgroundColor: WidgetStateProperty.all(
                               answer == widget.correctAnswer
                                   ? Colors.green
                                   : Colors.red))
                       : null,
-                  child: HtmlText(answer, style: const TextStyle(fontSize: 16),),
+                  child: HtmlText(
+                    answer,
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
-          ))
+              ))
           .toList(growable: false),
     );
   }
 }
-
-
 
 class TriviaResults extends StatelessWidget {
   final int correct;
@@ -181,15 +157,19 @@ class TriviaResults extends StatelessWidget {
     final ratio = correct.toDouble() / total;
     final percentage = (ratio * 100).floor();
 
-    final scoreColor = Color.fromARGB(255, (255 * (1.0 - ratio)).floor(), (255 * ratio).floor(), 0);
+    final scoreColor = Color.fromARGB(
+        255, (255 * (1.0 - ratio)).floor(), (255 * ratio).floor(), 0);
 
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text("$percentage%", style: TextStyle(color: scoreColor, fontSize: 50)),
-          ElevatedButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Play again!")),
+          Text("$percentage%",
+              style: TextStyle(color: scoreColor, fontSize: 50)),
+          ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Play again!")),
         ],
       ),
     );
